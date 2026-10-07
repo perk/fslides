@@ -289,7 +289,7 @@ Invite-only is a launch posture, not a product. Adopted the github.io model:
 - [x] First adopter: the Elastic Observability deck, all slides authored at 1–5.
 - [x] Per-slide level saved in the slide's `<html data-density>`: the serve dial writes it
       (`/api/save-density`, no live reload), and it carries into build, export, hosted and pdf.
-- [ ] Presenter view mirrors the level
+- [x] Presenter view mirrors the level (2026-10-06): the presenter window loads each preview with `?density=N`
 
 ## Phase 2.13 — Editable export: Google Slides and PowerPoint (2026-10-01)
 - [x] `fslides pptx --editable` / `fslides gslides`: each slide rebuilt from the browser's
@@ -343,7 +343,7 @@ Candidates, unvalidated:
 - [x] Resizable notes panel (2026-09-01): drag handle on the top edge, height persisted per-deck in localStorage, slide reflows above the panel instead of being covered; full-viewport overlay keeps the drag alive over the slide iframe
 - Morph transitions: elements sharing `data-morph` ids FLIP-animate across slides (the Bento flagship; big visual payoff)
 - Narration "full autopilot": optional auto-advance when a slide's narration ends
-- Rebuild a proper speaker view (the old Presenter was removed 2026-07-23 — unclear + broken; teleprompter covers recording, Notes covers presenting, but a dual-screen view has real value)
+- [x] Speaker view (2026-10-06): `P` opens a second window with the current slide, the next slide, and large notes. Arrow keys there advance the audience window. The 2026-07-23 presenter was removed because it was unclear and broken; this one is only the dual-screen view.
 - Comment thread states: resolve / reopen (map to issue close/reopen or a label)
 - Live comment updates (gateway webhook → SSE) — after Phase 1
 

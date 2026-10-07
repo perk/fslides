@@ -909,6 +909,7 @@
       <div class="sc-group">
         <h4>work</h4>
         <div class="sc-row">speaker notes<span class="keys"><kbd class="sck">N</kbd></span></div>
+        <div class="sc-row">presenter view<span class="keys"><kbd class="sck">P</kbd></span></div>
         <div class="sc-row">comments<span class="keys"><kbd class="sck">K</kbd></span></div>
         <div class="sc-row">edit this slide<span class="keys"><kbd class="sck">E</kbd></span></div>
         <div class="sc-row">comment on anything<span class="keys"><kbd class="sck">right-click</kbd></span></div>
@@ -973,6 +974,10 @@
   <button class="nav-btn" id="btn-notes" data-tip="Speaker notes — N">
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="12" height="10" rx="1.5"/><path d="M5 6h6M5 8.5h4"/></svg>
     <span class="nav-label">Notes</span>
+  </button>
+  <button class="nav-btn" id="btn-presenter" data-tip="Presenter view — P · current slide, notes, next slide">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2.5" width="8" height="6" rx="1"/><rect x="6.5" y="7.5" width="8" height="6" rx="1"/></svg>
+    <span class="nav-label">Presenter</span>
   </button>
   <button class="nav-btn" id="btn-comments" data-tip="Comments — K · or right-click anything on the slide" style="display:none; position:relative;">
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 10a1.5 1.5 0 0 1-1.5 1.5H6l-3.5 3v-3H3.5A1.5 1.5 0 0 1 2 10V3.5A1.5 1.5 0 0 1 3.5 2h9A1.5 1.5 0 0 1 14 3.5V10z"/></svg>
@@ -1092,7 +1097,7 @@ function densityInit() {
   const box = document.getElementById('density'), val = document.getElementById('density-val');
   box.style.display = ''; document.getElementById('density-sep').style.display = '';
   const paint = () => { val.textContent = cur; box.querySelectorAll('.d-bar').forEach(b => b.classList.toggle('on', +b.dataset.l <= cur)); };
-  window.addEventListener('message', e => { if (e.data && e.data.type === 'fslides:density-level' && e.source === frame.contentWindow) { cur = clamp(e.data.level); paint(); } });
+  window.addEventListener('message', e => { if (e.data && e.data.type === 'fslides:density-level' && e.source === frame.contentWindow) { cur = clamp(e.data.level); paint(); broadcastPresenterState(); } });
   window.getDensity = () => cur;
   window.setDensity = L => {
     L = clamp(L); if (L === cur) return;
@@ -1104,6 +1109,7 @@ function densityInit() {
       fetch('/api/save-density', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file: slide, level: L }) })
         .then(r => r.json()).then(d => showToast(d.ok ? 'Density ' + L + ' · saved to ' + slide : 'Density not saved: ' + d.error)).catch(() => showToast('Density not saved'));
     } else showToast('Density ' + L);
+    broadcastPresenterState();
   };
   box.addEventListener('click', e => { const b = e.target.closest('.d-bar'); if (b) { e.stopPropagation(); window.setDensity(+b.dataset.l); } });
   paint();
@@ -1698,6 +1704,7 @@ function handleKey(key) {
   if (key === 'g' || key === 'G') { toggleOverview(); return; }
   if (key === 't' || key === 'T') { toggleFilmstrip(); return; }
   if (key === 'n' || key === 'N') { toggleNotes(); return; }
+  if (key === 'p' || key === 'P') { openPresenterView(); return; }
   if (key === 'v' || key === 'V') { voiceToggle(); return; }
   if (key === 'k' || key === 'K') { toggleComments(); return; }
   if (key === 'm' || key === 'M') {
@@ -2132,7 +2139,7 @@ const notesSaveMsg  = document.getElementById('notes-save-msg');
 const btnNotes      = document.getElementById('btn-notes');
 
 let notesOpen = false;
-let allNotes  = {};
+let allNotes  = (window.FUCKSLIDES_NOTES && typeof window.FUCKSLIDES_NOTES === 'object') ? window.FUCKSLIDES_NOTES : {};
 let notesSaveTimer = null;
 let notesSaveMsgTimer = null;
 
@@ -2189,7 +2196,7 @@ notesResizeHandle.addEventListener('mousedown', e => {
   window.addEventListener('blur', onUp);
 });
 
-if (!window.FUCKSLIDES_EXPORT) fetch('/api/notes').then(r => r.json()).then(d => { allNotes = d; }).catch(() => {});
+if (!window.FUCKSLIDES_EXPORT) fetch('/api/notes').then(r => r.json()).then(d => { allNotes = d; broadcastPresenterState(); }).catch(() => {});
 
 function loadNotesForSlide() {
   const file = slides[idx];
@@ -2218,6 +2225,7 @@ function saveNotes() {
   const file = slides[idx];
   const notes = notesTextarea.value;
   allNotes[file] = notes;
+  broadcastPresenterState();
   fetch('/api/save-notes', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -3828,13 +3836,26 @@ function timerToggle() {
     timerInterval = setInterval(timerTick, 500); timerRunning = true;
     navTimerEl.classList.remove('paused'); navTimerEl.classList.add('running');
   }
+  broadcastPresenterState();
 }
 function timerReset() {
   clearInterval(timerInterval); timerInterval = null;
   timerRunning = false; timerOffset = 0;
   navTimerEl.textContent = '00:00'; navTimerEl.classList.remove('running','paused');
+  broadcastPresenterState();
 }
 navTimerEl.addEventListener('click', timerToggle);
+
+presenterChannel = new BroadcastChannel('fuckslides-presenter');
+presenterChannel.onmessage = (ev) => {
+  const msg = ev.data;
+  if (!msg || msg.type !== 'command') return;
+  if (msg.action === 'next') go(idx + 1);
+  else if (msg.action === 'prev') go(idx - 1);
+  else if (msg.action === 'timer-toggle') timerToggle();
+  else if (msg.action === 'timer-reset') timerReset();
+  else if (msg.action === 'hello') broadcastPresenterState();
+};
 
 // ── Laser & Draw ──────────────────────────────────────────────────────────────
 const laserDot = document.getElementById('laser-dot');
@@ -3889,18 +3910,21 @@ interactionOverlay.addEventListener('mouseleave', () => { isDrawing = false; });
 
 // ── Presenter view ────────────────────────────────────────────────────────────
 function openPresenterView() {
-  window.open('/presenter', 'fuckslides-presenter', 'width=1440,height=820,resizable=yes');
-  if (!presenterChannel) presenterChannel = new BroadcastChannel('fuckslides-presenter');
-  setTimeout(broadcastPresenterState, 600);
+  const popup = window.open('/presenter', 'fuckslides-presenter', 'width=1440,height=900,resizable=yes');
+  if (!popup) { showToast('Allow pop-ups to open the presenter window'); return; }
+  setTimeout(broadcastPresenterState, 400);
 }
 function broadcastPresenterState() {
-  if (!presenterChannel) return;
+  if (typeof presenterChannel === 'undefined' || !presenterChannel) return;
   presenterChannel.postMessage({
     type: 'state', idx, slides, labels,
     notes: allNotes,
+    disabled: [...disabled],
+    density: (typeof window.getDensity === 'function') ? window.getDensity() : null,
     timerRunning, timerMs: timerRunning ? timerOffset + (Date.now() - timerStart) : timerOffset,
   });
 }
+document.getElementById('btn-presenter').addEventListener('click', openPresenterView);
 
 // ── Toolbar visibility ────────────────────────────────────────────────────────
 // Fixed and always visible — hidden entirely while presenting fullscreen

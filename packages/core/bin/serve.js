@@ -433,6 +433,7 @@ window.FUCKSLIDES_LIVE_RELOAD = ${JSON.stringify(config.liveReload !== false)};
 
     if (urlPath === '/presenter') {
       const presenterPath = path.join(pkgDir, 'presenter.html');
+      if (!fs.existsSync(presenterPath)) { res.writeHead(404); res.end('Not found'); return; }
       res.writeHead(200, { 'Content-Type': 'text/html' });
       fs.createReadStream(presenterPath).pipe(res);
       return;

@@ -9,6 +9,7 @@
   "files": [
     "bin/",
     "player.html",
+    "presenter.html",
     "logo.png",
     "js/",
     "template/",

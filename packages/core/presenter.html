@@ -1,194 +1,299 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Presenter View</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { width: 100%; height: 100vh; overflow: hidden; background: #0d0f14; font-family: 'Inter', -apple-system, sans-serif; color: #fff; -webkit-font-smoothing: antialiased; }
-
-    #layout { display: grid; grid-template-columns: 1fr 340px; grid-template-rows: 1fr auto; height: 100vh; gap: 0; }
-
-    /* ── Current slide ── */
-    #current-wrap {
-      grid-row: 1; grid-column: 1;
-      display: flex; align-items: center; justify-content: center;
-      background: #181a22; position: relative; overflow: hidden;
-      border-right: 1px solid rgba(255,255,255,0.07);
-    }
-    #current-frame { border: none; width: 1280px; height: 720px; display: block; transform-origin: center center; }
-
-    /* ── Right panel ── */
-    #right-panel { grid-row: 1; grid-column: 2; display: flex; flex-direction: column; background: #13151c; border-left: 1px solid rgba(255,255,255,0.07); }
-
-    /* ── Next slide ── */
-    #next-section { flex-shrink: 0; border-bottom: 1px solid rgba(255,255,255,0.07); padding: 12px; }
-    .panel-label { font-size: 0.58rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.25); margin-bottom: 8px; }
-    #next-wrap { width: 100%; aspect-ratio: 16/9; background: #0d0f14; border-radius: 6px; overflow: hidden; position: relative; }
-    #next-frame { border: none; width: 1280px; height: 720px; display: block; transform-origin: top left; pointer-events: none; }
-    #next-label { font-size: 0.7rem; color: rgba(255,255,255,0.35); margin-top: 6px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-    /* ── Notes ── */
-    #notes-section { flex: 1; display: flex; flex-direction: column; padding: 12px; min-height: 0; }
-    #notes-text { flex: 1; overflow-y: auto; font-size: 0.875rem; line-height: 1.65; color: rgba(255,255,255,0.65); white-space: pre-wrap; min-height: 0; }
-    #notes-text::-webkit-scrollbar { width: 4px; }
-    #notes-text::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
-    #notes-placeholder { color: rgba(255,255,255,0.18); font-style: italic; font-size: 0.8rem; }
-
-    /* ── Bottom bar ── */
-    #bar {
-      grid-row: 2; grid-column: 1 / -1;
-      display: flex; align-items: center; gap: 2rem;
-      padding: 0 1.5rem; height: 48px;
-      background: #0a0b10; border-top: 1px solid rgba(255,255,255,0.07);
-    }
-    #bar-timer { font-family: 'SF Mono','Fira Code',monospace; font-size: 1.1rem; font-weight: 700; color: #34D399; min-width: 70px; cursor: pointer; user-select: none; }
-    #bar-timer.paused { color: rgba(251,146,60,0.85); }
-    #bar-timer.stopped { color: rgba(255,255,255,0.3); }
-    #bar-counter { font-size: 0.8rem; font-weight: 700; color: rgba(255,255,255,0.5); }
-    #bar-title { font-size: 0.75rem; color: rgba(255,255,255,0.25); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-    #bar-hint { font-size: 0.62rem; color: rgba(255,255,255,0.18); flex-shrink: 0; }
-    .bar-dot { width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,0.1); flex-shrink: 0; }
-
-    #waiting { display: flex; align-items: center; justify-content: center; height: 100vh; flex-direction: column; gap: 12px; color: rgba(255,255,255,0.3); font-size: 0.85rem; }
-    #waiting p { font-size: 0.7rem; color: rgba(255,255,255,0.2); }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Presenter</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%;
+    background: #0c0e13; color: #e8eaef;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+  header {
+    flex-shrink: 0; display: flex; align-items: baseline; gap: 16px;
+    padding: 10px 16px; border-bottom: 1px solid rgba(255,255,255,0.08);
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  #timer {
+    font-variant-numeric: tabular-nums; font-size: 1.6rem; font-weight: 700;
+    letter-spacing: 0.04em; cursor: pointer; color: #fff;
+  }
+  #timer.running { color: #FF6A1A; }
+  #count { color: rgba(255,255,255,0.5); font-size: 0.92rem; }
+  #label {
+    font-family: Inter, -apple-system, sans-serif;
+    font-size: 1rem; font-weight: 650; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .hint { margin-left: auto; color: rgba(255,255,255,0.4); font-size: 0.92rem; white-space: nowrap; }
+  .note-size {
+    display: inline-flex; gap: 6px; margin-left: 8px;
+  }
+  .note-size button {
+    background: transparent; color: rgba(255,255,255,0.75);
+    border: 1px solid rgba(255,255,255,0.18); border-radius: 6px;
+    padding: 2px 8px; cursor: pointer;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.92rem; letter-spacing: 0;
+  }
+  .note-size button:hover { background: rgba(255,255,255,0.06); }
+  #waiting {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,0.5); font-size: 1.15rem; padding: 24px; text-align: center;
+  }
+  #deck {
+    flex: 1; min-height: 0; display: none;
+    grid-template-columns: minmax(220px, var(--split, 50%)) 14px minmax(200px, 1fr);
+    grid-template-rows: 1fr 1fr;
+    gap: 12px 0; padding: 12px 16px;
+  }
+  .card { min-height: 0; min-width: 0; display: flex; flex-direction: column; }
+  .card.now { grid-column: 1; grid-row: 1; }
+  .card.next { grid-column: 1; grid-row: 2; }
+  #split {
+    grid-column: 2; grid-row: 1 / span 2; cursor: col-resize; position: relative;
+    touch-action: none; margin: -12px 0;
+  }
+  #split::before {
+    content: ''; position: absolute; top: 12px; bottom: 12px; left: 6px;
+    width: 2px; border-radius: 1px; background: rgba(255,255,255,0.14);
+  }
+  #split:hover::before, #split.dragging::before { background: #FF6A1A; }
+  .card h2 {
+    flex-shrink: 0; margin: 0 0 6px; font-size: 0.92rem; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.45);
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  .card.now h2 { color: #FF6A1A; }
+  .viewport { position: relative; flex: 1; min-height: 0; background: #000; border-radius: 8px; overflow: hidden; }
+  .viewport.next { cursor: pointer; }
+  .viewport iframe {
+    position: absolute; left: 50%; top: 50%;
+    width: 1280px; height: 720px; margin-left: -640px; margin-top: -360px;
+    border: 0; transform-origin: center center;
+    pointer-events: none; background: #000;
+  }
+  .end {
+    display: none; position: absolute; inset: 0;
+    align-items: center; justify-content: center;
+    color: rgba(255,255,255,0.5); font-size: 1rem;
+  }
+  .notes-wrap {
+    grid-column: 3; grid-row: 1 / span 2; min-width: 0; min-height: 0;
+    background: #141820; border-radius: 10px; overflow: hidden;
+  }
+  #notes {
+    height: 100%; overflow: auto; padding: 18px 20px;
+    white-space: pre-wrap; line-height: 1.45; font-size: 32px;
+  }
+  #notes.empty { color: rgba(255,255,255,0.4); font-style: italic; }
+</style>
 </head>
 <body>
-
-<div id="waiting">
-  <span>Waiting for presentation window…</span>
-  <p>Open fuckSlides and press P to connect.</p>
-</div>
-
-<div id="layout" style="display:none">
-  <div id="current-wrap">
-    <iframe id="current-frame" scrolling="no"></iframe>
-  </div>
-
-  <div id="right-panel">
-    <div id="next-section">
-      <div class="panel-label">Up next</div>
-      <div id="next-wrap">
-        <iframe id="next-frame" scrolling="no"></iframe>
+  <header>
+    <div id="timer" title="Start or pause the talk timer">00:00</div>
+    <div id="count"></div>
+    <div id="label"></div>
+    <div class="hint">audience sees the other window · ← → here moves both</div>
+    <div class="note-size">
+      <button id="smaller" type="button" title="Smaller notes">A−</button>
+      <button id="larger" type="button" title="Larger notes">A+</button>
+    </div>
+  </header>
+  <div id="waiting">Waiting for the slide window. Leave that window open, then press P there.</div>
+  <div id="deck">
+    <section class="card now">
+      <h2>Now</h2>
+      <div class="viewport" id="now-view"><iframe id="now" title="Current slide"></iframe></div>
+    </section>
+    <section class="card next">
+      <h2>Next</h2>
+      <div class="viewport next" id="next-view" title="Next slide — click or press →">
+        <iframe id="next" title="Next slide"></iframe>
+        <div class="end" id="end">End of the deck</div>
       </div>
-      <div id="next-label">—</div>
-    </div>
-    <div id="notes-section">
-      <div class="panel-label">Notes</div>
-      <div id="notes-text"><span id="notes-placeholder">No notes for this slide.</span></div>
-    </div>
+    </section>
+    <div id="split" title="Drag to resize" role="separator" aria-orientation="vertical" aria-label="Resize notes"></div>
+    <section class="notes-wrap">
+      <div id="notes"></div>
+    </section>
   </div>
-
-  <div id="bar">
-    <span id="bar-timer" class="stopped">00:00</span>
-    <span class="bar-dot"></span>
-    <span id="bar-counter">—</span>
-    <span class="bar-dot"></span>
-    <span id="bar-title"></span>
-    <span id="bar-hint">P to open · C timer · R reset</span>
-  </div>
-</div>
-
 <script>
-'use strict';
+const channel = new BroadcastChannel('fuckslides-presenter');
+const waitingEl = document.getElementById('waiting');
+const deckEl = document.getElementById('deck');
+const nowView = document.getElementById('now-view');
+const nextView = document.getElementById('next-view');
+const nowFrame = document.getElementById('now');
+const nextFrame = document.getElementById('next');
+const endEl = document.getElementById('end');
+const notesEl = document.getElementById('notes');
+const timerEl = document.getElementById('timer');
+const countEl = document.getElementById('count');
+const labelEl = document.getElementById('label');
 
-const layout   = document.getElementById('layout');
-const waiting  = document.getElementById('waiting');
-const curFrame = document.getElementById('current-frame');
-const nxtFrame = document.getElementById('next-frame');
-const nxtWrap  = document.getElementById('next-wrap');
-const nxtLabel = document.getElementById('next-label');
-const notesEl  = document.getElementById('notes-text');
-const placeholder = document.getElementById('notes-placeholder');
-const barTimer = document.getElementById('bar-timer');
-const barCounter = document.getElementById('bar-counter');
-const barTitle   = document.getElementById('bar-title');
-
-let timerRunning = false, timerOffset = 0, timerStart = 0, timerInterval = null;
+let notePx = Number(localStorage.getItem('fs-presenter-note-px')) || 32;
+let timerRunning = false, timerBase = 0, timerAt = 0;
 let connected = false;
 
-function fmtTime(ms) {
+function applyNoteSize() {
+  notePx = Math.max(18, Math.min(72, notePx));
+  notesEl.style.fontSize = notePx + 'px';
+  localStorage.setItem('fs-presenter-note-px', String(notePx));
+}
+applyNoteSize();
+document.getElementById('smaller').addEventListener('click', () => { notePx -= 4; applyNoteSize(); });
+document.getElementById('larger').addEventListener('click', () => { notePx += 4; applyNoteSize(); });
+
+function fit(viewport, iframe) {
+  const w = viewport.clientWidth;
+  const h = viewport.clientHeight;
+  if (!w || !h) return;
+  const scale = Math.min(w / 1280, h / 720);
+  iframe.style.transform = 'scale(' + scale + ')';
+}
+function fitAll() { fit(nowView, nowFrame); fit(nextView, nextFrame); }
+window.addEventListener('resize', fitAll);
+if (typeof ResizeObserver !== 'undefined') {
+  const fitObserver = new ResizeObserver(fitAll);
+  fitObserver.observe(nowView);
+  fitObserver.observe(nextView);
+}
+
+const splitEl = document.getElementById('split');
+const SPLIT_KEY = 'fs-presenter-split';
+let splitRatio = Number(localStorage.getItem(SPLIT_KEY));
+if (!(splitRatio >= 0.22 && splitRatio <= 0.78)) splitRatio = 0.5;
+
+function applySplit() {
+  deckEl.style.setProperty('--split', (splitRatio * 100) + '%');
+  requestAnimationFrame(fitAll);
+}
+applySplit();
+
+splitEl.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  splitEl.classList.add('dragging');
+  const move = (ev) => {
+    const rect = deckEl.getBoundingClientRect();
+    if (!rect.width) return;
+    splitRatio = Math.max(0.22, Math.min(0.78, (ev.clientX - rect.left) / rect.width));
+    applySplit();
+  };
+  const up = () => {
+    splitEl.classList.remove('dragging');
+    localStorage.setItem(SPLIT_KEY, String(splitRatio));
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+});
+
+function slideSrc(file, density) {
+  if (!file) return '';
+  if (density == null) return file;
+  return file + (file.includes('?') ? '&' : '?') + 'density=' + density;
+}
+function setFrame(iframe, file, density) {
+  const next = slideSrc(file, density);
+  if (iframe.dataset.src === next) return;
+  iframe.dataset.src = next;
+  iframe.style.display = file ? 'block' : 'none';
+  if (file) iframe.src = next;
+  else iframe.removeAttribute('src');
+}
+
+function step(slides, disabled, idx, dir) {
+  const off = new Set(disabled || []);
+  let i = idx + dir;
+  while (i >= 0 && i < slides.length && off.has(slides[i])) i += dir;
+  return (i >= 0 && i < slides.length) ? i : -1;
+}
+
+function fmt(ms) {
+  ms = Math.max(0, ms);
   const m = Math.floor(ms / 60000), s = Math.floor((ms % 60000) / 1000);
-  return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+  return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
 }
-function timerTick() {
-  barTimer.textContent = fmtTime(timerOffset + (Date.now() - timerStart));
+function shownMs() {
+  return timerRunning ? timerBase + (Date.now() - timerAt) : timerBase;
 }
+setInterval(() => { timerEl.textContent = fmt(shownMs()); }, 250);
 
-function scaleFrame(iframe, wrap) {
-  const ro = new ResizeObserver(() => {
-    const w = wrap.offsetWidth, h = wrap.offsetHeight;
-    const scale = Math.min(w / 1280, h / 720);
-    iframe.style.transform = `scale(${scale})`;
-    iframe.style.marginLeft = ((w - 1280 * scale) / 2) + 'px';
-    iframe.style.marginTop  = ((h -  720 * scale) / 2) + 'px';
-  });
-  ro.observe(wrap);
-}
+function send(action) { channel.postMessage({ type: 'command', action }); }
 
-function scaleCurrentFrame() {
-  const wrap = document.getElementById('current-wrap');
-  const ro = new ResizeObserver(() => {
-    const w = wrap.offsetWidth, h = wrap.offsetHeight;
-    const scale = Math.min(w / 1280, h / 720);
-    curFrame.style.transform = `scale(${scale})`;
-  });
-  ro.observe(wrap);
-}
+channel.onmessage = (ev) => {
+  const msg = ev.data;
+  if (!msg || msg.type !== 'state' || !Array.isArray(msg.slides)) return;
+  connected = true;
+  waitingEl.style.display = 'none';
+  deckEl.style.display = 'grid';
 
-scaleCurrentFrame();
-scaleFrame(nxtFrame, nxtWrap);
+  const slides = msg.slides;
+  const disabled = msg.disabled || [];
+  const idx = Math.max(0, Math.min(slides.length - 1, msg.idx || 0));
+  const labels = msg.labels || [];
+  const off = new Set(disabled);
+  const active = slides.filter(s => !off.has(s));
+  const activeIdx = active.indexOf(slides[idx]);
+  countEl.textContent = (activeIdx + 1) + ' / ' + active.length;
+  labelEl.textContent = labels[idx] || slides[idx] || '';
 
-const bc = new BroadcastChannel('fuckslides-presenter');
-bc.onmessage = ({ data }) => {
-  if (data.type !== 'state') return;
-
-  if (!connected) {
-    connected = true;
-    waiting.style.display = 'none';
-    layout.style.display = 'grid';
-  }
-
-  const { idx, slides, labels, notes, timerRunning: tr, timerMs } = data;
-
-  // Current slide
-  const curSlide = slides[idx];
-  if (curFrame.src !== location.origin + '/' + curSlide) curFrame.src = curSlide;
-
-  // Next slide
-  const nxtSlide = slides[idx + 1];
-  if (nxtSlide) {
-    if (nxtFrame.src !== location.origin + '/' + nxtSlide) nxtFrame.src = nxtSlide;
-    nxtLabel.textContent = labels[idx + 1] || nxtSlide.replace('.html','');
-    nxtFrame.style.display = 'block';
+  const density = (typeof msg.density === 'number') ? msg.density : null;
+  setFrame(nowFrame, slides[idx], density);
+  const n = step(slides, disabled, idx, 1);
+  if (n === -1) {
+    setFrame(nextFrame, '', density);
+    endEl.style.display = 'flex';
   } else {
-    nxtFrame.src = 'about:blank';
-    nxtLabel.textContent = '(last slide)';
+    endEl.style.display = 'none';
+    setFrame(nextFrame, slides[n], density);
   }
+  requestAnimationFrame(fitAll);
 
-  // Notes
-  const note = (notes && notes[curSlide]) || '';
-  if (note) { notesEl.textContent = note; placeholder && placeholder.remove(); }
-  else { notesEl.innerHTML = '<span id="notes-placeholder" style="color:rgba(255,255,255,0.18);font-style:italic;font-size:0.8rem">No notes for this slide.</span>'; }
+  const note = ((msg.notes && msg.notes[slides[idx]]) || '').trim();
+  notesEl.textContent = note || 'No speaker notes for this slide.';
+  notesEl.classList.toggle('empty', !note);
+  notesEl.scrollTop = 0;
 
-  // Counter
-  barCounter.textContent = (idx + 1) + ' / ' + slides.length;
-  barTitle.textContent = labels[idx] || curSlide.replace('.html','');
-
-  // Timer sync
-  timerOffset = timerMs || 0;
-  if (tr && !timerRunning) {
-    timerRunning = true; timerStart = Date.now() - timerOffset;
-    timerInterval = setInterval(timerTick, 500);
-    barTimer.classList.remove('stopped','paused'); barTimer.classList.add('running');
-  } else if (!tr && timerRunning) {
-    clearInterval(timerInterval); timerRunning = false;
-    barTimer.textContent = fmtTime(timerOffset);
-    barTimer.classList.remove('running'); barTimer.classList.add('paused');
-  }
-  if (!tr) barTimer.textContent = fmtTime(timerOffset);
+  timerRunning = !!msg.timerRunning;
+  timerBase = msg.timerMs || 0;
+  timerAt = Date.now();
+  timerEl.classList.toggle('running', timerRunning);
+  timerEl.textContent = fmt(shownMs());
 };
+
+nextView.addEventListener('click', () => send('next'));
+timerEl.addEventListener('click', () => send('timer-toggle'));
+
+document.addEventListener('keydown', (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const t = e.target;
+  if (t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT' || t.tagName === 'SELECT')) return;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ' || e.key === 'PageDown') {
+    e.preventDefault(); send('next');
+  } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp') {
+    e.preventDefault(); send('prev');
+  } else if (e.key === 'c' || e.key === 'C') {
+    send('timer-toggle');
+  } else if (e.key === 'r' || e.key === 'R') {
+    send('timer-reset');
+  } else if (e.key === '+' || e.key === '=') {
+    notePx += 4; applyNoteSize();
+  } else if (e.key === '-' || e.key === '_') {
+    notePx -= 4; applyNoteSize();
+  }
+});
+
+function hello() { channel.postMessage({ type: 'command', action: 'hello' }); }
+hello();
+setInterval(() => { if (!connected) hello(); }, 1000);
+window.addEventListener('focus', hello);
 </script>
 </body>
 </html>
